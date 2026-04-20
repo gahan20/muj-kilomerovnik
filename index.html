@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kilometrovník</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #f4f4f9; padding: 20px; color: #333; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        input { padding: 10px; border: 1px solid #ddd; border-radius: 5px; width: 100px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .status { font-size: 1.2em; font-weight: bold; }
+        .over { color: #28a745; } /* Zelená - nad plánem */
+        .under { color: #dc3545; } /* Červená - pod plánem */
+    </style>
+</head>
+<body>
+
+    <h2>🏃 Můj Kilometrovník</h2>
+
+    <div class="card">
+        <h3>Nastavení plánu</h3>
+        <input type="number" id="yearlyGoal" placeholder="Roční cíl (km)" value="1000">
+        <button onclick="saveGoal()">Uložit cíl</button>
+    </div>
+
+    <div class="card">
+        <h3>Zapsat kilometry</h3>
+        <input type="date" id="dateInput">
+        <input type="number" id="kmInput" placeholder="km">
+        <button onclick="addEntry()">Uložit den</button>
+    </div>
+
+    <div class="card">
+        <h3>Aktuální stav</h3>
+        <div id="stats" class="status">Načítám...</div>
+        <canvas id="kmChart" width="400" height="200"></canvas>
+    </div>
+
+    <script>
+        let data = JSON.parse(localStorage.getItem('kmData')) || {};
+        let goal = localStorage.getItem('kmGoal') || 1000;
+
+        document.getElementById('yearlyGoal').value = goal;
+        document.getElementById('dateInput').valueAsDate = new Date();
+
+        function saveGoal() {
+            goal = document.getElementById('yearlyGoal').value;
+            localStorage.setItem('kmGoal', goal);
+            updateStats();
+        }
+
+        function addEntry() {
+            const date = document.getElementById('dateInput').value;
+            const km = parseFloat(document.getElementById('kmInput').value);
+            if (date && !isNaN(km)) {
+                data[date] = km;
+                localStorage.setItem('kmData', JSON.stringify(data));
+                updateStats();
+            }
+        }
+
+        function updateStats() {
+            const now = new Date();
+            const startOfYear = new Date(now.getFullYear(), 0, 0);
+            const diff = now - startOfYear;
+            const oneDay = 1000 * 60 * 60 * 24;
+            const dayOfYear = Math.floor(diff / oneDay);
+            const totalDays = ((now.getFullYear() % 4 === 0 && now.getFullYear() % 100 !== 0) || now.getFullYear() % 400 === 0) ? 366 : 365;
+
+            let totalWalked = Object.values(data).reduce((a, b) => a + b, 0);
+            let idealToDate = (goal / totalDays) * dayOfYear;
+            let difference = totalWalked - idealToDate;
+
+            const statsDiv = document.getElementById('stats');
+            let statusClass = difference >= 0 ? 'over' : 'under';
+            statsDiv.innerHTML = `
+                Celkem: ${totalWalked.toFixed(1)} km<br>
+                Rozdíl oproti plánu: <span class="${statusClass}">${difference > 0 ? '+' : ''}${difference.toFixed(2)} km</span>
+            `;
+            renderChart();
+        }
+
+        function renderChart() {
+            // Jednoduchý graf posledních 7 záznamů
+            const ctx = document.getElementById('kmChart').getContext('2d');
+            const sortedDates = Object.keys(data).sort().slice(-7);
+            const values = sortedDates.map(d => data[d]);
+
+            if (window.myChart) window.myChart.destroy();
+            window.myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedDates,
+                    datasets: [{ label: 'Odchozené km', data: values, backgroundColor: '#007bff' }]
+                }
+            });
+        }
+
+        updateStats();
+    </script>
+</body>
+</html>
