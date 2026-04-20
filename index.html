@@ -3,47 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kilometrovník</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>Kilometrovník - Čistý</title>
     <style>
-        body { font-family: sans-serif; background: #f4f4f9; padding: 20px; color: #333; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        input { padding: 10px; border: 1px solid #ddd; border-radius: 5px; width: 100px; }
-        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        .status { font-size: 1.2em; font-weight: bold; }
-        .over { color: #28a745; } /* Zelená - nad plánem */
-        .under { color: #dc3545; } /* Červená - pod plánem */
+        :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --bg: #f4f4f9; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); padding: 15px; color: #333; margin: 0; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        h3 { margin-top: 0; font-size: 1.1em; color: #555; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+        
+        .calendar-box { display: flex; flex-direction: column; gap: 15px; }
+        input[type="date"], input[type="number"] { 
+            padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; width: 100%; box-sizing: border-box;
+        }
+        
+        .btn-save { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; }
+        .btn-save:active { background: #0056b3; }
+
+        .status-badge { font-size: 2em; font-weight: 800; margin-bottom: 5px; display: block; }
+        .info-text { font-size: 1.1em; line-height: 1.6; }
+        .over { color: var(--success); }
+        .under { color: var(--danger); }
+        
+        .day-info { background: #eef6ff; padding: 12px; border-radius: 8px; font-size: 1em; border-left: 5px solid var(--primary); }
+        .label-hint { font-size: 0.85em; color: #888; margin-bottom: 5px; display: block; }
     </style>
 </head>
 <body>
 
-    <h2>🏃 Můj Kilometrovník</h2>
-
-    <div class="card">
-        <h3>Nastavení plánu</h3>
-        <input type="number" id="yearlyGoal" placeholder="Roční cíl (km)" value="1000">
-        <button onclick="saveGoal()">Uložit cíl</button>
+    <div style="text-align: center; padding: 20px 0;">
+        <h2 style="margin:0; letter-spacing: -1px;">🏃 MOJE KILOMETRY</h2>
     </div>
 
     <div class="card">
-        <h3>Zapsat kilometry</h3>
-        <input type="date" id="dateInput">
-        <input type="number" id="kmInput" placeholder="km">
-        <button onclick="addEntry()">Uložit den</button>
+        <h3>📅 Zápis do kalendáře</h3>
+        <div class="calendar-box">
+            <div>
+                <span class="label-hint">Vyberte den pro zobrazení nebo zápis:</span>
+                <input type="date" id="datePicker" onchange="loadDayData()">
+            </div>
+            
+            <div id="dayDisplay" class="day-info">
+                Načítám den...
+            </div>
+
+            <div>
+                <span class="label-hint">Zadejte ušlé kilometry:</span>
+                <input type="number" id="kmInput" placeholder="např. 12.5" step="0.1">
+            </div>
+            
+            <button class="btn-save" onclick="saveData()">ULOŽIT ZÁZNAM</button>
+        </div>
     </div>
 
     <div class="card">
-        <h3>Aktuální stav</h3>
-        <div id="stats" class="status">Načítám...</div>
-        <canvas id="kmChart" width="400" height="200"></canvas>
+        <h3>📊 Tvůj roční progres</h3>
+        <span id="totalKm" class="status-badge">0 km</span>
+        <div id="diffStatus" class="info-text">Počítám...</div>
+    </div>
+
+    <div class="card" style="background: #fdfdfd;">
+        <h3>⚙️ Roční cíl</h3>
+        <div style="display: flex; gap: 10px;">
+            <input type="number" id="yearlyGoal" placeholder="Kolik km za rok?">
+            <button onclick="saveGoal()" style="background:#444; border-radius:8px; color:white; border:none; padding:12px;">OK</button>
+        </div>
     </div>
 
     <script>
         let data = JSON.parse(localStorage.getItem('kmData')) || {};
         let goal = localStorage.getItem('kmGoal') || 1000;
 
+        const picker = document.getElementById('datePicker');
+        picker.valueAsDate = new Date();
         document.getElementById('yearlyGoal').value = goal;
-        document.getElementById('dateInput').valueAsDate = new Date();
+
+        function loadDayData() {
+            const selectedDate = picker.value;
+            const display = document.getElementById('dayDisplay');
+            const input = document.getElementById('kmInput');
+
+            if (data[selectedDate]) {
+                display.innerHTML = `V tento den zapsáno: <strong>${data[selectedDate]} km</strong>`;
+                input.value = data[selectedDate];
+            } else {
+                display.innerHTML = `Pro tento den <strong>nemáte</strong> žádný záznam.`;
+                input.value = '';
+            }
+        }
+
+        function saveData() {
+            const date = picker.value;
+            const km = parseFloat(document.getElementById('kmInput').value);
+            
+            if (date) {
+                if (isNaN(km) || km <= 0) {
+                    delete data[date];
+                } else {
+                    data[date] = km;
+                }
+                localStorage.setItem('kmData', JSON.stringify(data));
+                loadDayData();
+                updateStats();
+            }
+        }
 
         function saveGoal() {
             goal = document.getElementById('yearlyGoal').value;
@@ -51,53 +112,30 @@
             updateStats();
         }
 
-        function addEntry() {
-            const date = document.getElementById('dateInput').value;
-            const km = parseFloat(document.getElementById('kmInput').value);
-            if (date && !isNaN(km)) {
-                data[date] = km;
-                localStorage.setItem('kmData', JSON.stringify(data));
-                updateStats();
-            }
-        }
-
         function updateStats() {
             const now = new Date();
             const startOfYear = new Date(now.getFullYear(), 0, 0);
-            const diff = now - startOfYear;
-            const oneDay = 1000 * 60 * 60 * 24;
-            const dayOfYear = Math.floor(diff / oneDay);
-            const totalDays = ((now.getFullYear() % 4 === 0 && now.getFullYear() % 100 !== 0) || now.getFullYear() % 400 === 0) ? 366 : 365;
+            const dayOfYear = Math.floor((now - startOfYear) / (1000 * 60 * 60 * 24));
+            const totalDaysInYear = ((now.getFullYear() % 4 === 0 && now.getFullYear() % 100 !== 0) || now.getFullYear() % 400 === 0) ? 366 : 365;
 
             let totalWalked = Object.values(data).reduce((a, b) => a + b, 0);
-            let idealToDate = (goal / totalDays) * dayOfYear;
+            let idealToDate = (goal / totalDaysInYear) * dayOfYear;
             let difference = totalWalked - idealToDate;
 
-            const statsDiv = document.getElementById('stats');
-            let statusClass = difference >= 0 ? 'over' : 'under';
-            statsDiv.innerHTML = `
-                Celkem: ${totalWalked.toFixed(1)} km<br>
-                Rozdíl oproti plánu: <span class="${statusClass}">${difference > 0 ? '+' : ''}${difference.toFixed(2)} km</span>
+            document.getElementById('totalKm').innerText = `${totalWalked.toFixed(1)} km`;
+            
+            const diffDiv = document.getElementById('diffStatus');
+            const statusClass = difference >= 0 ? 'over' : 'under';
+            const sign = difference >= 0 ? '+' : '';
+            
+            diffDiv.innerHTML = `
+                Dnes bys měl mít: <strong>${idealToDate.toFixed(1)} km</strong><br>
+                Aktuálně jsi: <span class="${statusClass}"><strong>${sign}${difference.toFixed(2)} km</strong></span>
             `;
-            renderChart();
         }
 
-        function renderChart() {
-            // Jednoduchý graf posledních 7 záznamů
-            const ctx = document.getElementById('kmChart').getContext('2d');
-            const sortedDates = Object.keys(data).sort().slice(-7);
-            const values = sortedDates.map(d => data[d]);
-
-            if (window.myChart) window.myChart.destroy();
-            window.myChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: sortedDates,
-                    datasets: [{ label: 'Odchozené km', data: values, backgroundColor: '#007bff' }]
-                }
-            });
-        }
-
+        // Spuštění při načtení
+        loadDayData();
         updateStats();
     </script>
 </body>
